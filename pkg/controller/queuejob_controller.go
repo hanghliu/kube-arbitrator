@@ -30,6 +30,7 @@ import (
 	qjobv1lister "github.com/kubernetes-incubator/kube-arbitrator/pkg/client/listers/queuejob/v1"
 	"github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources"
 	respod "github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources/pod"
+	resservice "github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources/service"
 	"github.com/kubernetes-incubator/kube-arbitrator/pkg/schedulercache"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -83,6 +84,7 @@ type QueueJobController struct {
 func RegisterAllQueueJobResourceTypes(regs *queuejobresources.RegisteredResources) {
 
 	respod.Register(regs)
+	resservice.Register(regs)
 
 }
 
@@ -164,8 +166,12 @@ func NewQueueJobController(config *rest.Config, schCache schedulercache.Cache) *
 			},
 		})
 
+	//register and initialize sub-resources controls
 	RegisterAllQueueJobResourceTypes(&qjm.qjobRegisteredResources)
-	resControl, found, err := qjm.qjobRegisteredResources.InitQueueJobResource(qjobv1.ResourceTypePod, config)
+	qjm.qjobResControls = map[qjobv1.ResourceType]queuejobresources.Interface{}
+
+	//initialize pod sub-resource control
+	resControlPod, found, err := qjm.qjobRegisteredResources.InitQueueJobResource(qjobv1.ResourceTypePod, config)
 	if err != nil {
 		glog.Errorf("fail to create queuejob resource control")
 		return nil
@@ -174,10 +180,21 @@ func NewQueueJobController(config *rest.Config, schCache schedulercache.Cache) *
 		glog.Errorf("queuejob resource type Pod not found")
 		return nil
 	}
+	qjm.qjobResControls[qjobv1.ResourceTypePod] = resControlPod
 
-	qjm.qjobResControls = map[qjobv1.ResourceType]queuejobresources.Interface{}
-	qjm.qjobResControls[qjobv1.ResourceTypePod] = resControl
+	//initialize service sub-resource control
+	resControlService, found, err := qjm.qjobRegisteredResources.InitQueueJobResource(qjobv1.ResourceTypeService, config)
+	if err != nil {
+		glog.Errorf("fail to create queuejob resource control")
+		return nil
+	}
+	if !found {
+		glog.Errorf("queuejob resource type service not found")
+		return nil
+	}
+	qjm.qjobResControls[qjobv1.ResourceTypeService] = resControlService
 
+	//create sub-resource reference manager
 	qjm.refManager = queuejobresources.NewLabelRefManager()
 
 	return qjm
@@ -188,7 +205,10 @@ func (qjm *QueueJobController) Run(workers int, stopCh <-chan struct{}) {
 
 	go qjm.queueJobInformer.Informer().Run(stopCh)
 	go qjm.queueInformer.Informer().Run(stopCh)
+
+	//start sub-resource controls
 	go qjm.qjobResControls[qjobv1.ResourceTypePod].Run(stopCh)
+	go qjm.qjobResControls[qjobv1.ResourceTypeService].Run(stopCh)
 
 	defer utilruntime.HandleCrash()
 	defer qjm.queue.ShutDown()
@@ -298,27 +318,27 @@ func (qjm *QueueJobController) getQueueJobsForQueue(j *qjobv1.Queue) ([]*qjobv1.
 
 //Handle queue information updating
 func (qjm *QueueJobController) updateQueue(oldQueue, newQueue *qjobv1.Queue) error {
-
-	equal, err := resourcesEqual(&oldQueue.Status.Allocated,
-		&newQueue.Status.Allocated)
-	if err != nil {
-		return err
-	}
-
-	if !equal {
-		qjobs, err := qjm.getQueueJobsForQueue(oldQueue)
+	/*
+		equal, err := resourcesEqual(&oldQueue.Status.Allocated,
+			&newQueue.Status.Allocated)
 		if err != nil {
 			return err
 		}
 
-		//TODO: add re-schedule queuejob resources' quota handling here
+		if !equal {
+			qjobs, err := qjm.getQueueJobsForQueue(oldQueue)
+			if err != nil {
+				return err
+			}
 
-		for _, qjob := range qjobs {
-			qjm.enqueueController(qjob)
+			//TODO: add re-schedule queuejob resources' quota handling here
+
+			for _, qjob := range qjobs {
+				qjm.enqueueController(qjob)
+			}
+
 		}
-
-	}
-
+	*/
 	return nil
 }
 
