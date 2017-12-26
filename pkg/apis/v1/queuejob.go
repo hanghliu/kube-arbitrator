@@ -76,8 +76,9 @@ type ResourceType string
 
 //only support resource type pod for now
 const (
-	ResourceTypePod     ResourceType = "Pod"
-	ResourceTypeService ResourceType = "Service"
+	ResourceTypePod        ResourceType = "Pod"
+	ResourceTypeService    ResourceType = "Service"
+	ResourceTypeReplicaSet ResourceType = "ReplicaSet"
 )
 
 // QueueJobStatus represents the current state of a QueueJob.

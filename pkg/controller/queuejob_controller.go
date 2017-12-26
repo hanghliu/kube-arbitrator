@@ -30,6 +30,7 @@ import (
 	qjobv1lister "github.com/kubernetes-incubator/kube-arbitrator/pkg/client/listers/queuejob/v1"
 	"github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources"
 	respod "github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources/pod"
+	resreplicaset "github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources/replicaset"
 	resservice "github.com/kubernetes-incubator/kube-arbitrator/pkg/controller/queuejobresources/service"
 	"github.com/kubernetes-incubator/kube-arbitrator/pkg/schedulercache"
 	"k8s.io/api/core/v1"
@@ -85,6 +86,7 @@ func RegisterAllQueueJobResourceTypes(regs *queuejobresources.RegisteredResource
 
 	respod.Register(regs)
 	resservice.Register(regs)
+	resreplicaset.Register(regs)
 
 }
 
@@ -194,6 +196,18 @@ func NewQueueJobController(config *rest.Config, schCache schedulercache.Cache) *
 	}
 	qjm.qjobResControls[qjobv1.ResourceTypeService] = resControlService
 
+	//initialize service sub-resource control
+	resControlReplicaSet, found, err := qjm.qjobRegisteredResources.InitQueueJobResource(qjobv1.ResourceTypeReplicaSet, config)
+	if err != nil {
+		glog.Errorf("fail to create queuejob resource control")
+		return nil
+	}
+	if !found {
+		glog.Errorf("queuejob resource type service not found")
+		return nil
+	}
+	qjm.qjobResControls[qjobv1.ResourceTypeReplicaSet] = resControlReplicaSet
+
 	//create sub-resource reference manager
 	qjm.refManager = queuejobresources.NewLabelRefManager()
 
@@ -209,6 +223,7 @@ func (qjm *QueueJobController) Run(workers int, stopCh <-chan struct{}) {
 	//start sub-resource controls
 	go qjm.qjobResControls[qjobv1.ResourceTypePod].Run(stopCh)
 	go qjm.qjobResControls[qjobv1.ResourceTypeService].Run(stopCh)
+	go qjm.qjobResControls[qjobv1.ResourceTypeReplicaSet].Run(stopCh)
 
 	defer utilruntime.HandleCrash()
 	defer qjm.queue.ShutDown()
