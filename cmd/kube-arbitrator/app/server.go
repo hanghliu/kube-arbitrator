@@ -17,6 +17,7 @@ limitations under the License.
 package app
 
 import (
+	"fmt"
 	"github.com/kubernetes-incubator/kube-arbitrator/cmd/kube-arbitrator/app/options"
 	"github.com/kubernetes-incubator/kube-arbitrator/pkg/controller"
 	"github.com/kubernetes-incubator/kube-arbitrator/pkg/policy"
@@ -49,7 +50,12 @@ func Run(opt *options.ServerOption) error {
 	c.Run(neverStop)
 
 	qjobc := controller.NewQueueJobController(config, cache)
-	qjobc.Run(1, neverStop)
+	go qjobc.Run(1, neverStop)
+	fmt.Printf("========= queuejob run \n")
+
+	dms := controller.NewDummyScheduler(config, cache)
+	go dms.Run(1, neverStop)
+	fmt.Printf("========= dummy scheduler run \n")
 
 	<-neverStop
 
