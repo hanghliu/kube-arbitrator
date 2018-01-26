@@ -1,0 +1,92 @@
+apiVersion: arbitrator.incubator.k8s.io/v1
+kind: QueueJob
+metadata:
+  labels:
+    mylabel: test
+    queue: q03
+  name: queuejob23
+  namespace: ns03
+  finalizers:
+    - finalizer.queuejob.arbitrator.incubator.k8s
+spec:
+  priority: 20
+  resources:
+    Items:
+    - desiredreplicas: 1
+      minreplicas: 1
+      priority: 200.0
+      template: 
+        kind: Service
+        apiVersion: v1
+        metadata:
+          name: qjob23-service
+        spec:
+          selector:
+            app: qjob23-service
+          ports:
+          - protocol: TCP
+            port: 80
+            targetPort: 9376
+      type: Service 
+    - desiredreplicas: 1
+      minreplicas: 1
+      priority: 200.0
+      template: 
+        apiVersion: v1
+        kind: PodTemplate
+        metadata:
+         labels:
+           mylabel: res1
+        template: 
+            metadata:
+              labels:
+                app: qjob23-paramserver
+            spec:
+              containers:
+              - name: paramserver
+                image: nginx:latest
+                ports:
+                  - containerPort: 80            
+      type: Pod
+    - desiredreplicas: 3
+      minreplicas: 1
+      priority: 100.0
+      template: 
+        apiVersion: extensions/v1beta1 
+        kind: ReplicaSet
+        metadata:
+          name: learnerrs-23
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              tier: frontend-23
+            matchExpressions:
+              - {key: tier, operator: In, values: [frontend-23]}
+          template:
+            metadata:
+              labels:
+                app: guestbook
+                tier: frontend-23
+                app: qjob23-learner
+            spec:
+              containers:
+              - name: learner
+                image: nginx:latest
+      type: ReplicaSet
+  service:
+    template: 
+      metadata:
+        name: dlaas-ui
+        labels:
+          app: dlaas-ui
+      spec:
+        ports:
+        - port: 80
+          protocol: TCP
+        selector:
+          app: paramserver
+status:
+  message: Created and enqueued, not processed yet
+  state: Enqueued
+
