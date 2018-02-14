@@ -59,6 +59,7 @@ type QueueJobResource struct {
 	metav1.ObjectMeta `json:"metadata"`
 	MinReplicas       int32                `json:"minreplicas"`
 	DesiredReplicas   int32                `json:"desiredreplicas"`
+	AllocatedReplicas int32                `json:"allocatedreplicas"`
 	Priorty           float64              `json:"priority"`
 	Type              ResourceType         `json:"type"`
 	Template          runtime.RawExtension `json:"template"`
@@ -83,10 +84,10 @@ const (
 
 // QueueJobStatus represents the current state of a QueueJob.
 type QueueJobStatus struct {
-	State             QueueJobState       `json:"state,omitempty"`
-	AllocatedReplicas int32               `json:"allocatedreplicas"`
-	ResourceUsage     ResourceUsageStatus `json:"resources,omitempty"`
-	Message           string              `json:"message,omitempty"`
+	State             QueueJobState `json:"state,omitempty"`
+	AllocatedReplicas int32         `json:"allocatedreplicas"`
+	//	ResourceUsage     ResourceUsageStatus `json:"resources,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type QueueJobState string
