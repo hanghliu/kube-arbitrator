@@ -255,9 +255,28 @@ func (qjm *QueueJobController) addQueueJob(obj interface{}) {
 	return
 }
 
-func (qjm *QueueJobController) updateQueueJob(old, cur interface{}) {
+func (qjm *QueueJobController) updateQueueJob(oldObj, newObj interface{}) {
 
-	qjm.enqueueController(cur)
+	oldQueueJob, ok := oldObj.(*qjobv1.QueueJob)
+	if !ok {
+		glog.Errorf("cannot convert oldObj to *qjobv1.QueueJob: %v", oldObj)
+		return
+	}
+	newQueueJob, ok := newObj.(*qjobv1.QueueJob)
+	if !ok {
+		glog.Errorf("cannot convert newObj to *qjobv1.QueueJob: %v", newObj)
+		return
+	}
+
+	if oldQueueJob.Status.AllocatedReplicas < newQueueJob.Status.AllocatedReplicas &&
+		newQueueJob.Status.AllocatedReplicas != 0 {
+		qjm.recorder.Event(newQueueJob, v1.EventTypeNormal, "QueuejobScaleUp", "Queuejob has been scaled up")
+	} else if oldQueueJob.Status.AllocatedReplicas > newQueueJob.Status.AllocatedReplicas &&
+		newQueueJob.Status.AllocatedReplicas != 0 {
+		qjm.recorder.Event(newQueueJob, v1.EventTypeNormal, "QueuejobScaleDown", "Queuejob has been scaled Down")
+	}
+
+	qjm.enqueueController(newObj)
 	return
 }
 
@@ -487,9 +506,46 @@ func (qjm *QueueJobController) syncQueueJob(key string) error {
 			Name(name).Body(sharedJob).Do().Into(&result)
 
 		//TODO: Add distributing resource quota among sub-resources
+		if job.Status.AllocatedReplicas == 0 && job.Status.State != qjobv1.QueueJobStateEnqueued {
+			fmt.Printf("========= AllocatedReplicas == 0: state %s Name %s\n", job.Status.State, job.Name)
+			err = qjm.Cleanup(sharedJob)
+			if err != nil {
+				return err
+			}
 
-		for _, ar := range job.Spec.AggrResources.Items {
-			qjm.qjobResControls[ar.Type].Sync(sharedJob, &ar)
+			job.Status.State = qjobv1.QueueJobStateEnqueued
+			job.Status.Message = "Queuejob is enqueued and pending"
+			qjm.recorder.Event(&job, v1.EventTypeNormal, "QueuejobPreempted", "Queuejob has been Preempted")
+			_, err := qjobclient.QueueJobUpdateStatus(qjm.qjobClient, &job)
+			if err != nil {
+				return err
+			}
+
+			return nil
+
+		}
+
+		if job.Status.AllocatedReplicas != 0 {
+			if job.Spec.AggrResources.Items != nil {
+				//calculate scaling
+
+				for _, ar := range job.Spec.AggrResources.Items {
+					qjm.qjobResControls[ar.Type].Sync(sharedJob, &ar)
+				}
+
+				for _, ar := range job.Spec.AggrResources.Items {
+					qjm.qjobResControls[ar.Type].Sync(sharedJob, &ar)
+				}
+			}
+			job.Status.State = qjobv1.QueueJobStateActive
+			job.Status.Message = "Queuejob is active"
+			qjm.recorder.Event(&job, v1.EventTypeNormal, "QueuejobActived", "Queuejob has been created and actived")
+
+			_, err = qjobclient.QueueJobUpdateStatus(qjm.qjobClient, &job)
+			if err != nil {
+				return err
+
+			}
 		}
 	}
 

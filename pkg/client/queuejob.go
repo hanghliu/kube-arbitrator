@@ -48,6 +48,54 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	return nil
 }
 
+func QueueJobGet(cl *rest.RESTClient, ns string, name string) (*qjobv1.QueueJob, error) {
+
+	result := &qjobv1.QueueJob{}
+	err := cl.Get().
+		Namespace(ns).Resource(qjobv1.QueueJobPlural).
+		Name(name).Do().Into(result)
+	return result, err
+
+}
+
+func QueueJobUpdate(cl *rest.RESTClient, queuejob *qjobv1.QueueJob) (*qjobv1.QueueJob, error) {
+	result := &qjobv1.QueueJob{}
+	old, err := QueueJobGet(cl, queuejob.Namespace, queuejob.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	old.Spec = *queuejob.Spec.DeepCopy()
+	err = cl.Put().
+		Namespace(queuejob.Namespace).Resource(qjobv1.QueueJobPlural).
+		Name(queuejob.Name).Body(old).Do().Into(result)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func QueueJobUpdateStatus(cl *rest.RESTClient, queuejob *qjobv1.QueueJob) (*qjobv1.QueueJob, error) {
+	result := &qjobv1.QueueJob{}
+	old, err := QueueJobGet(cl, queuejob.Namespace, queuejob.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	old.Status = *queuejob.Status.DeepCopy()
+	err = cl.Put().
+		Namespace(queuejob.Namespace).Resource(qjobv1.QueueJobPlural).
+		Name(queuejob.Name).Body(old).Do().Into(result)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func NewQueueJobClient(cfg *rest.Config) (*rest.RESTClient, *runtime.Scheme, error) {
 	scheme := runtime.NewScheme()
 	if err := qjobv1.AddToScheme(scheme); err != nil {

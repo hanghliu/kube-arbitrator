@@ -246,15 +246,15 @@ func (qjrPod *QueueJobResPod) Sync(queuejob *qjobv1.QueueJob, qjobRes *qjobv1.Qu
 	activePods := controller.FilterActivePods(pods)
 	numActivePods := int32(len(activePods))
 
-	if qjobRes.DesiredReplicas < numActivePods {
+	if qjobRes.AllocatedReplicas < numActivePods {
 
 		qjrPod.scaleDownQueueJobResource(
-			int32(numActivePods-qjobRes.DesiredReplicas),
+			int32(numActivePods-qjobRes.AllocatedReplicas),
 			activePods, queuejob, qjobRes)
-	} else if qjobRes.DesiredReplicas > numActivePods {
+	} else if qjobRes.AllocatedReplicas > numActivePods {
 
 		qjrPod.scaleUpQueueJobResource(
-			int32(qjobRes.DesiredReplicas-numActivePods),
+			int32(qjobRes.AllocatedReplicas-numActivePods),
 			activePods, queuejob, qjobRes)
 	}
 
